@@ -1,38 +1,52 @@
 #include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
 
-#include <freertos/FreeRTOS.h>
-#include <freertos/task.h>
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "freertos/queue.h"
 
-#include <esp_err.h>
-#include <dht/dht.h>
+#include "esp_log.h"
+#include "esp_system.h"
+#include "esp_err.h"
 
-#define DHT_GPIO 5 // D1 pin
+#include "driver/i2c.h"
 
-void temperature_task(void *arg)
-{
-    ESP_ERROR_CHECK(dht_init(DHT_GPIO, false));
-    vTaskDelay(2000 / portTICK_PERIOD_MS);
-    while (1)
-    {
-        int16_t humidity = 0;
-        int16_t temperature = 0;
-        float humidity1, temperature1;
-        if (dht_read_data(DHT_TYPE_DHT22, DHT_GPIO, &humidity, &temperature) == ESP_OK) {
-            // e.g. in dht22, 604 = 60.4%, 252 = 25.2 C
-            // If you want to print float data, you should run `make menuconfig`
-            // to enable full newlib and call dht_read_float_data() here instead
-        	humidity1 = (float) (humidity / 100);
-        	temperature1 = (float) (temperature / 100);
-            printf("Humidity: %d\ Temperature: %d\n", humidity, temperature);
-        } else 
-		{
-            printf("Fail to get dht temperature data\n");
-        }
-        vTaskDelay(5000 / portTICK_PERIOD_MS);
-    }
-    vTaskDelete(NULL);
-}
+static const char *TAG = "main";
+
+/*Pin assignment:
+ *
+ * - master:
+ *    GPIO14 is assigned as the data signal of i2c master port
+ *    GPIO2 is assigned as the clock signal of i2c master port
+ * - read the sensor data, if connected.*/
+
+#define I2C_MASTER_SCL_IO 			2
+#define I2C_MASTER_SDA_IO			14
+#define I2C_MASTER_NUM				I2C_NUM_0
+#define I2C_MASTER_TX_BUF_DISABLE	0
+#define I2C_MASTER_RX_BUF_DISABLE	0
+
+#define BMP180_ADDR 				0x77
+#define WRITE_BIT					I2C_MASTER_WRITE
+#define READ_BIT					I2C_MASTER_READ
+#define ACK_CHECK_EN				0X1
+#define ACK_CHECK_DIS				0X0
+#define ACK_VAL						0X0
+#define NACK_VAL					0X1
+#define LAST_NACK_VAL				0X2
+
+/*Define BMP180 register addresses*/
+#define OUT_XLSB					0xF8
+#define OUT_LSB						0xF7
+#define OUT_MSB						0xF6
+#define CTRL_MEAS					0xF4
+#define SOFT_RESET					0xE0
+#define ID							0xD0
+/*calib21 to calib 0                  0xBF down to 0xAA*/
+
 
 void app_main() {
-    xTaskCreate(temperature_task, "temperature task", 2048, NULL, tskIDLE_PRIORITY, NULL);
+	xTaskCreate(temperature_task, "temperature task", 2048, NULL,
+			tskIDLE_PRIORITY, NULL);
 }
