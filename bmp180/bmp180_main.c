@@ -44,6 +44,10 @@ static const char *TAG = "main";
 #define SOFT_RESET					0xE0
 #define ID							0xD0
 /*calib21 to calib 0                  0xBF down to 0xAA*/
+#define AC1_MSB 					0xAA
+#define AC1_LSB						0xAB	
+#define AC2_MSB						0xAC
+#define AC2_LSB 					0xAD 						
 
 static esp_err_t i2c_master_init()
 {
@@ -101,6 +105,16 @@ static esp_err_t i2c_master_bmp180_read(i2c_port_t i2c_num, uint8_t reg_address,
     i2c_cmd_link_delete(cmd);
 
 	return ret;
+}
+
+static esp_err_t i2c_master_bmp180_init(i2c_port_t i2c_num)
+{
+	uint8_t cmd_data;
+	uint8_t Callib_Data[22] = {0};
+	vTaskDelay(100 / portTICK_PERIOD_MS);
+	i2c_master_init();
+	ESP_ERROR_CHECK(i2c_master_bmp180_read(i2c_num, AC1_MSB, &Callib_Data[0], 1));
+	ESP_ERROR_CHECK(i2c_master_bmp180_read(i2c_num, AC1_LSB, &Callib_Data[1], 1));
 }
 void app_main() {
 	xTaskCreate(temperature_task, "temperature task", 2048, NULL,
