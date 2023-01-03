@@ -70,7 +70,7 @@ static const char *TAG = "main";
 
 static sint8_t Callib_Data[22] = {0};
 static sint16_t AC1, AC2, AC3, AC4, AC5, AC6, B1, B2, MB, MC, MD;
-static float X1, X2, X3, B4, B5. B6. B7, temp, press;
+static float X1, X2, X3, B3, B4, B5, B6, B7, temp, press;
 
 static esp_err_t i2c_master_init()
 {
@@ -264,8 +264,50 @@ float BMP180_Altitude (int oss)
 	return 44330 * (1 - (pow(((float)Press / (float)atm), 0.19029495718)));
 }
 
+static void i2c_pressure_task(void *arg)
+{
+	uint8_t sensor_data;
+	float temp, press, alt; 
+	static u_int32_t error_count = 0;
+	int ret1, ret2;
+	uint8_t device_id = 0;
+	uint8_t oss = 0; //default 00. 00b-low power mode, 01b- standard, 10b-high resolution, 11b-ultra high resolution
+	
+	i2c_master_bmp180_init(I2C_MASTER_NUM);
+
+	while(1)
+	{
+		i2c_master_bmp180_read(I2C_MASTER_NUM, ID, &device_id, 1);
+
+		if(0xD0 != device_id)
+		{
+			error_count++;
+		}
+		ret1 = i2c_master_bmp180_write(I2C_MASTER_NUM, CTRL_MEAS, &(oss << 6), 1);
+		if(ret1 == ESP_OK)
+		{
+			ESP_LOGI(TAG, "*****************\n");
+			ESP_LOGI(TAG, "Device ID: 0x%02x\n", device_id);
+			temp = BMP180_ActualTemp();
+			press = BMP180_ActualPress(oss);
+			alt = BMP180_Altitude(oss);
+			ESP_LOGI("Temperature %.2f\n", temp);
+			ESP_LOGI("Pressure %.2f\n", press);
+			ESP_LOGI("Altitude %.4f\n", alt);
+			ESP_LOGI(TAG, "error_count: %d\n", error_count);
+		}
+		else
+		{
+			ESP_LOGE(TAG, "No ack, sensor not connected....skip....\n");
+		}
+
+		vTaskDelay(100 / portTICK_RATE_MS);
+	}
+
+	i2c_driver_delete(I2C_MASTER_NUM);
+}
 
 void app_main() {
-	xTaskCreate(temperature_task, "temperature task", 2048, NULL,
+	xTaskCreate(i2c_pressure_task, "i2c_pressure_task task", 2048, NULL,
 			tskIDLE_PRIORITY, NULL);
 }
